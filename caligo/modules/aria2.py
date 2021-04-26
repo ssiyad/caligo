@@ -219,7 +219,7 @@ class Aria2WebSocketServer:
 
                 self.log.info(f"Seeding: [gid: '{file.gid}'] - Complete")
 
-            task = self.loop.create_task(seedFile(file), name=f"Seed-{file.gid}")
+            task = self.loop.create_task(seedFile(), name=f"Seed-{file.gid}")
             await asyncio.wait((task,))
 
     async def onDownloadPause(self, _: Aria2WebsocketClient,
