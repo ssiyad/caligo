@@ -340,7 +340,7 @@ class Aria2WebSocketServer:
         ]
 
         task = self.loop.create_task(util.system.run_command(*cmd))
-        done, _ = await asyncio.wait_for((task,))
+        done, _ = await asyncio.wait((task,))
 
         done.result()
         _, stderr, ret = task.result()
