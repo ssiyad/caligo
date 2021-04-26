@@ -339,8 +339,8 @@ class Aria2WebSocketServer:
             "--seed-ratio=1", f"-i {str(file_path)}"
         ]
 
-        task = util.system.run_command(*cmd)
-        done, _ = await asyncio.wait(task)
+        task = self.loop.create_task(util.system.run_command(*cmd))
+        done, _ = await asyncio.wait_for(task)
 
         done.result()
         _, stderr, ret = task.result()
