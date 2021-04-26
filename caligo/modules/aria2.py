@@ -28,8 +28,7 @@ class Aria2WebSocketServer:
     downloads: Dict[str, util.aria2.Download]
     lock: asyncio.Lock
     uploads:  Dict[
-            str, Union[MediaFileUpload, Dict[str, Union[asyncio.Task, int]]]
-        ]
+        str, Union[MediaFileUpload, Dict[str, Union[asyncio.Task, int]]]]
 
     index_link: str
     invoker: pyrogram.types.Message
@@ -43,6 +42,7 @@ class Aria2WebSocketServer:
 
         self.lock = asyncio.Lock()
         self.log = Aria2WebSocketServer.log
+        self.loop = self.bot.loop
 
         self.cancelled = set()
         self.downloads = {}
@@ -105,7 +105,7 @@ class Aria2WebSocketServer:
         for handler, name in trigger:
             client.register(handler, f"aria2.{name}")
 
-        asyncio.create_task(self.updateProgress())
+        self.loop.create_task(self.updateProgress())
         return client
 
     @property
@@ -201,7 +201,7 @@ class Aria2WebSocketServer:
         self.log.info(f"Complete download: [gid: '{gid}']")
 
         if file.bittorrent:
-            asyncio.create_task(self.seedFile(file), name=f"Seed-{file.gid}")
+            self.loop.create_task(self.seedFile(file), name=f"Seed-{file.gid}")
 
     async def onDownloadPause(self, _: Aria2WebsocketClient,
                               data: Union[Dict[str, Any], Any]) -> None:
@@ -339,11 +339,7 @@ class Aria2WebSocketServer:
             "--seed-ratio=1", f"-i {str(file_path)}"
         ]
 
-        try:
-            _, stderr, ret = await util.system.run_command(*cmd)
-        except Exception as e:  # skipcq: PYL-W0703
-            self.log.warning(e)
-            return
+        _, stderr, ret = yield util.system.run_command(*cmd)
 
         if ret != 0:
             self.log.info("Seeding: [gid: '{file.gid}'] - Failed")
