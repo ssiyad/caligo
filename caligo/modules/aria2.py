@@ -201,7 +201,26 @@ class Aria2WebSocketServer:
         self.log.info(f"Complete download: [gid: '{gid}']")
 
         if file.bittorrent:
-            self.loop.create_task(self.seedFile(file), name=f"Seed-{file.gid}")
+
+            async def seedFile() -> None:
+                file_path = Path(str(file.dir / file.info_hash) + ".torrent")
+                if not file_path.is_file():
+                    return
+
+                self.log.info(f"Seeding: [gid: '{file.gid}']")
+                port = util.aria2.get_free_port()
+                cmd = [
+                    "aria2c", "--enable-rpc", "--rpc-listen-all=false",
+                    f"--rpc-listen-port={port}", "--bt-seed-unverified=true",
+                    "--seed-ratio=1", f"-i {str(file_path)}"
+                ]
+
+                await util.system.run_command(*cmd)
+
+                self.log.info(f"Seeding: [gid: '{file.gid}'] - Complete")
+
+            task = self.loop.create_task(seedFile(file), name=f"Seed-{file.gid}")
+            await asyncio.wait((task,))
 
     async def onDownloadPause(self, _: Aria2WebsocketClient,
                               data: Union[Dict[str, Any], Any]) -> None:
@@ -325,32 +344,6 @@ class Aria2WebSocketServer:
                     last_update_time = now
 
             await asyncio.sleep(0.1)
-
-    async def seedFile(self, file: util.aria2.Download) -> None:
-        file_path = Path(str(file.dir / file.info_hash) + ".torrent")
-        if not file_path.is_file():
-            return
-
-        self.log.info(f"Seeding: [gid: '{file.gid}']")
-        port = util.aria2.get_free_port()
-        cmd = [
-            "aria2c", "--enable-rpc", "--rpc-listen-all=false",
-            f"--rpc-listen-port={port}", "--bt-seed-unverified=true",
-            "--seed-ratio=1", f"-i {str(file_path)}"
-        ]
-
-        task = self.loop.create_task(util.system.run_command(*cmd))
-        done, _ = await asyncio.wait((task,))
-
-        done.result()
-        _, stderr, ret = task.result()
-
-        if ret != 0:
-            self.log.info("Seeding: [gid: '{file.gid}'] - Failed")
-            self.log.warning(stderr)
-            return
-
-        self.log.info(f"Seeding: [gid: '{file.gid}'] - Complete")
 
     async def uploadProgress(
             self, file: MediaFileUpload) -> Tuple[Union[str, None], bool]:
